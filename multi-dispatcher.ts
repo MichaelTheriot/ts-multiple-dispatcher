@@ -1,16 +1,45 @@
-type TypeGuard<T> = (value: any) => value is T;
-type TypeGuardArray<T extends any[]> = {
+export type TypeGuard<T> = (value: any) => value is T;
+export type TypeGuardArray<T extends any[]> = {
     [K in keyof T]: TypeGuard<T[K]>;
 };
 
-type Callable = (...args: any[]) => any;
-type Constructable = new (...args: any[]) => any;
+export type Callable<
+  Args extends any[] = any[],
+  T extends (...args: Args) => any = any
+> = (...args: Args) => ReturnType<T>;
 
-type FunctionParameters<T extends Function> = T extends Callable
+export type Constructable<
+  Args extends any[] = any[],
+  T extends abstract new (...args: Args) => any = any
+> = abstract new (...args: Args) => InstanceType<T>;
+
+export type FunctionParameters<T extends Function> = T extends Callable
     ? Parameters<T>
     : T extends Constructable
         ? ConstructorParameters<T>
         : never;
+
+type DistributeTuple<T extends readonly any[]> =
+    T extends [infer A, ...infer B]
+        ? A extends A
+            ? [A, ...DistributeTuple<B>]
+            : never
+        : [];
+        
+type Overload<T> =
+    T extends Callable
+        ? Exclude<DistributeTuple<Parameters<T>> extends infer U
+            ? U extends any[]
+                ? Callable<U, T>
+                : never
+            : never, T>
+        : T extends Constructable
+            ? Exclude<ConstructorParameters<T> extends infer U
+                ? U extends any[]
+                    ? Constructable<U, T>
+                    : never
+                : never, T>
+            : never;
 
 const testSignature = (args: unknown[], guards: TypeGuard<unknown>[], fn: Function) => {
     // test signature when there are matching number of arguments
@@ -43,13 +72,13 @@ const testSignature = (args: unknown[], guards: TypeGuard<unknown>[], fn: Functi
 
 export class DispatchResolver<T extends Function> {
     #defaultFn: T;
-    #dispatches: [TypeGuard<unknown>[], T][] = [];
+    #dispatches: [TypeGuard<unknown>[], Overload<T>][] = [];
 
     constructor(defaultFn: T) {
         this.#defaultFn = defaultFn;
     }
 
-    register(fn: T, ...guards: TypeGuardArray<FunctionParameters<T>>) {
+    register<U extends Overload<T>>(fn: U, ...guards: TypeGuardArray<FunctionParameters<U>>) {
         this.#dispatches.push([guards, fn]);
     }
 
@@ -70,7 +99,7 @@ export class FunctionDispatcher<T extends Callable> extends DispatchResolver<T> 
     }
 }
 
-export class ConstructorDispatcher<T extends Constructable> extends DispatchResolver<T> {
+export class ConstructorDispatcher<T extends new (...args: any[]) => any> extends DispatchResolver<T> {
     construct(...args: any[]): InstanceType<T> {
         return new (this.resolve(...args))(...args);
     }
