@@ -25,7 +25,7 @@ type DistributeTuple<T extends readonly any[]> =
             ? [A, ...DistributeTuple<B>]
             : never
         : [];
-        
+
 type Overload<T> =
     T extends Callable
         ? Exclude<DistributeTuple<Parameters<T>> extends infer U
@@ -41,25 +41,44 @@ type Overload<T> =
                 : never, T>
             : never;
 
-const testSignature = (args: unknown[], guards: TypeGuard<unknown>[], fn: Function) => {
+type IsUnion<T, U = T> =
+  T extends any
+    ? [U] extends [T]
+      ? false
+      : true
+    : never;
+
+type UnionTypeGuard<T> = IsUnion<T> extends true ? TypeGuard<T> : undefined;
+
+type UnionTypeGuards<T extends any[]> = {
+  [K in keyof T]: UnionTypeGuard<T[K]>;
+};
+
+type OptionalTypeGuard<T> = TypeGuard<T> | undefined;
+
+const testSignature = (args: unknown[], guards: OptionalTypeGuard<unknown>[], fn: Function) => {
     // test signature when there are matching number of arguments
     if (args.length === guards.length) {
-        return args.every((arg, i) => guards[i](arg));
+        return args.every((arg, i) => guards[i] === undefined ? true : guards[i](arg));
     }
 
     // test signature when there are variadic arguments, using last guard for all rest parameters
     if (args.length >= guards.length - 1 && guards.length === fn.length + 1) {
         // check explicit parameters
         for (let i = 0; i < fn.length; i++) {
-            if (!guards[i](args[i])) {
+            const guard = guards[i];
+            if (guard !== undefined && !guard(args[i])) {
                 return false;
             }
         }
 
         // check rest parameters
-        for (let i = fn.length; i < args.length; i++) {
-            if (!guards[fn.length](args[i])) {
-                return false;
+        const finalGuard = guards[fn.length];
+        if (finalGuard !== undefined) {
+            for (let i = fn.length; i < args.length; i++) {
+                if (!finalGuard(args[i])) {
+                    return false;
+                }
             }
         }
 
@@ -72,13 +91,13 @@ const testSignature = (args: unknown[], guards: TypeGuard<unknown>[], fn: Functi
 
 export class DispatchResolver<T extends Function> {
     #defaultFn: T;
-    #dispatches: [TypeGuard<unknown>[], Overload<T>][] = [];
+    #dispatches: [OptionalTypeGuard<unknown>[], Overload<T>][] = [];
 
     constructor(defaultFn: T) {
         this.#defaultFn = defaultFn;
     }
 
-    register<U extends Overload<T>>(fn: U, ...guards: TypeGuardArray<FunctionParameters<U>>) {
+    register<U extends Overload<T>>(fn: U, ...guards: UnionTypeGuards<FunctionParameters<T>>) {
         this.#dispatches.push([guards, fn]);
     }
 
