@@ -3,6 +3,8 @@ export type TypeGuardArray<T extends any[]> = {
     [K in keyof T]: TypeGuard<T[K]>;
 };
 
+type OptionalTypeGuard<T> = TypeGuard<T> | undefined;
+
 export type Callable<
   Args extends any[] = any[],
   T extends (...args: Args) => any = any
@@ -26,7 +28,7 @@ type DistributeTuple<T extends readonly any[]> =
             : never
         : [];
 
-type Overload<T> =
+export type Overload<T> =
     T extends Callable
         ? Exclude<DistributeTuple<Parameters<T>> extends infer U
             ? U extends any[]
@@ -48,13 +50,17 @@ type IsUnion<T, U = T> =
       : true
     : never;
 
-type UnionTypeGuard<T> = IsUnion<T> extends true ? TypeGuard<T> : undefined;
-
-type UnionTypeGuards<T extends any[]> = {
-  [K in keyof T]: UnionTypeGuard<T[K]>;
-};
-
-type OptionalTypeGuard<T> = TypeGuard<T> | undefined;
+export type OverloadTypeGuards<T extends Function, U extends Function> =
+  FunctionParameters<T> extends infer PT extends any[] ?
+  FunctionParameters<U> extends infer PU extends any[] ?
+    {
+      [K in keyof PT]:
+        K extends keyof PU
+          ? (IsUnion<PT[K]> extends true ? TypeGuard<PU[K]> : undefined)
+          : never;
+    }
+  : never
+  : never;
 
 const testSignature = (args: unknown[], guards: OptionalTypeGuard<unknown>[], fn: Function) => {
     // test signature when there are matching number of arguments
@@ -97,7 +103,7 @@ export class DispatchResolver<T extends Function> {
         this.#defaultFn = defaultFn;
     }
 
-    register<U extends Overload<T>>(fn: U, ...guards: UnionTypeGuards<FunctionParameters<T>>) {
+    register<U extends Overload<T>>(fn: U, ...guards: OverloadTypeGuards<T, U>) {
         this.#dispatches.push([guards, fn]);
     }
 
