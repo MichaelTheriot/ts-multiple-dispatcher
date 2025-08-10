@@ -119,13 +119,13 @@ export class DispatchResolver<T extends Function> {
 }
 
 export class FunctionDispatcher<T extends (...args: any[]) => any> extends DispatchResolver<T> {
-    dispatch(...args: FunctionParameters<T>): ReturnType<T> {
+    dispatch<P extends Parameters<T> & FunctionParameters<T>>(...args: P): ReturnType<T> {
         return (this.resolve(...args))(...args);
     }
 }
 
 export class ConstructorDispatcher<T extends new (...args: any[]) => any> extends DispatchResolver<T> {
-    construct(...args: FunctionParameters<T>): InstanceType<T> {
+    construct<P extends ConstructorParameters<T> & FunctionParameters<T>>(...args: P): InstanceType<T> {
         return new (this.resolve(...args))(...args);
     }
 }
