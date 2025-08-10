@@ -107,7 +107,7 @@ export class DispatchResolver<T extends Function> {
         this.#dispatches.push([guards, fn]);
     }
 
-    resolve(...args: any[]) {
+    resolve(...args: FunctionParameters<T>) {
         for (const [guards, fn] of this.#dispatches) {
             if (testSignature(args, guards, fn)) {
                 return fn;
@@ -118,14 +118,14 @@ export class DispatchResolver<T extends Function> {
     }
 }
 
-export class FunctionDispatcher<T extends Callable> extends DispatchResolver<T> {
-    dispatch(...args: any[]): ReturnType<T> {
+export class FunctionDispatcher<T extends (...args: any[]) => any> extends DispatchResolver<T> {
+    dispatch(...args: FunctionParameters<T>): ReturnType<T> {
         return (this.resolve(...args))(...args);
     }
 }
 
 export class ConstructorDispatcher<T extends new (...args: any[]) => any> extends DispatchResolver<T> {
-    construct(...args: any[]): InstanceType<T> {
+    construct(...args: FunctionParameters<T>): InstanceType<T> {
         return new (this.resolve(...args))(...args);
     }
 }
